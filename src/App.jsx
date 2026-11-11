@@ -178,7 +178,7 @@ function Dashboard({ user }) {
         <div className="content-wrap">
           <section className="welcome-row">
             <div><div className="eyebrow"><span /> ЖЕКЕ КЕҢІСТІК</div><h1>Ержігіт әулетінің <em>шежіресі</em></h1><p>Өткенді ұмытпай, келешекке аманат етейік.</p></div>
-            <button className="primary-button" onClick={() => setShowModal(true)}><Plus size={18} /> Адам қосу</button>
+            <button className="primary-button" onClick={() => { setEditingId(null); setForm({ name: '', surname: '', years: '', place: '', role: 'Ата', gender: 'male', parentId: people[0]?.id || '' }); setShowModal(true) }}><Plus size={18} /> Адам қосу</button>
           </section>
 
           <section className="stats-grid">
