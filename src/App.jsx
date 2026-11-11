@@ -1,4 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { collection, addDoc, onSnapshot, deleteDoc, doc } from 'firebase/firestore'
+import { db } from './lib/firebase'
+import AuthGate from './AuthGate.jsx'
 import {
   Search, Plus, ChevronDown, ChevronRight, Menu, X, TreePine,
   Users, BookOpen, Image, Settings, Bell, MoreHorizontal,
@@ -45,11 +48,21 @@ function PersonNode({ data }) {
 
 const nodeTypes = { person: PersonNode }
 
-function App() {
-  const [people, setPeople] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('tamyr-people')) || initialPeople } catch { return initialPeople }
-  })
-  const [active, setActive] = useState('1')
+function Dashboard({ user }) {
+  const [people, setPeople] = useState([])
+  const [loadingPeople, setLoadingPeople] = useState(true)
+  useEffect(() => {
+    const peopleRef = collection(db, 'families', user.uid, 'people')
+    return onSnapshot(peopleRef, snapshot => {
+      setPeople(snapshot.docs.map(item => ({ id: item.id, ...item.data() })))
+      setLoadingPeople(false)
+    }, error => {
+      console.error('Firestore people listener:', error)
+      setNotice('Деректерді жүктеу мүмкін болмады. Firestore ережелерін тексеріңіз.')
+      setLoadingPeople(false)
+    })
+  }, [user.uid])
+  const [active, setActive] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [search, setSearch] = useState('')
   const [mobileMenu, setMobileMenu] = useState(false)
@@ -75,25 +88,32 @@ function App() {
 
   function addPerson(e) {
     e.preventDefault()
-    const id = String(Date.now())
     const parent = people.find(p => p.id === form.parentId)
     const generationNumbers = { I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6, VII: 7, VIII: 8, IX: 9, X: 10 }
     const nextGeneration = parent ? (generationNumbers[parent.generation] || Number(parent.generation) || 1) + 1 : 1
-    const next = [...people, { ...form, id, parentId: form.parentId, years: form.years || '—', generation: String(nextGeneration), x: (parent?.x ?? 300) + (people.length % 2 ? 180 : -180), y: (parent?.y ?? 40) + 190 }]
-    setPeople(next)
-    localStorage.setItem('tamyr-people', JSON.stringify(next))
-    setActive(id)
+    try {
+      const created = await addDoc(collection(db, 'families', user.uid, 'people'), { ...form, parentId: form.parentId || '', years: form.years || '—', generation: String(nextGeneration), x: (parent?.x ?? 300) + (people.length % 2 ? 180 : -180), y: (parent?.y ?? 40) + 190, createdAt: new Date().toISOString() })
+      setActive(created.id)
     setShowModal(false)
-    setNotice('Жаңа адам шежіреге қосылды')
-    setTimeout(() => setNotice(''), 2800)
-    setForm({ name: '', surname: '', years: '', place: '', role: 'Ата', gender: 'male', parentId: '1' })
+      setNotice('Жаңа адам шежіреге қосылды')
+      setTimeout(() => setNotice(''), 2800)
+      setForm({ name: '', surname: '', years: '', place: '', role: 'Ата', gender: 'male', parentId: people[0]?.id || '' })
+    } catch (error) {
+      console.error(error)
+      setNotice('Адамды сақтау мүмкін болмады. Firestore ережелерін тексеріңіз.')
+    }
   }
 
-  function resetDemo() {
-    setPeople(initialPeople)
-    localStorage.removeItem('tamyr-people')
-    setActive('1')
-    setNotice('Демо шежіре қалпына келтірілді')
+  async function resetDemo() {
+    if (!window.confirm('Шежіредегі барлық адамды өшіргіңіз келе ме? Бұл әрекет қайтарылмайды.')) return
+    try {
+      await Promise.all(people.map(person => deleteDoc(doc(db, 'families', user.uid, 'people', person.id))))
+      setActive('')
+      setNotice('Шежіре тазартылды')
+    } catch (error) {
+      console.error(error)
+      setNotice('Өшіру кезінде қате шықты.')
+    }
     setTimeout(() => setNotice(''), 2800)
   }
 
@@ -121,7 +141,7 @@ function App() {
         <div className="sidebar-bottom">
           <div className="privacy-card"><ShieldCheck size={19} /><div><b>Деректеріңіз қорғалған</b><span>Шежіреңіз әзірге жеке</span></div></div>
           <button className="nav-item settings"><Settings size={18} />Баптаулар</button>
-          <div className="user-mini"><div className="user-avatar">GE</div><div><b>Әулет әкімшісі</b><span>Тегін жоспар</span></div><MoreHorizontal size={19} /></div>
+          <div className="user-mini"><div className="user-avatar">GE</div><div><b>{user.displayName || user.email}</b><span>Әулет әкімшісі</span></div><MoreHorizontal size={19} /></div>
         </div>
       </aside>
 
@@ -152,7 +172,7 @@ function App() {
           </section>
 
           <section className="tree-section" id="tree">
-            <div className="section-heading"><div><div className="eyebrow">ӘУЛЕТТІҢ ТАМЫРЫ</div><h2>Шежіре ағашы</h2><p>Ата-бабадан бүгінгі ұрпаққа дейінгі жол.</p></div><div className="tree-actions"><button className="outline-button" onClick={resetDemo}><Download size={16} /> Қалпына келтіру</button><button className="outline-button" onClick={() => setNotice('Бөлісу мүмкіндігі келесі кезеңде қосылады')}><Share2 size={16} /> Бөлісу</button></div></div>
+            <div className="section-heading"><div><div className="eyebrow">ӘУЛЕТТІҢ ТАМЫРЫ</div><h2>Шежіре ағашы</h2><p>Ата-бабадан бүгінгі ұрпаққа дейінгі жол.</p></div><div className="tree-actions"><button className="outline-button" onClick={resetDemo}><Download size={16} /> Шежірені тазарту</button><button className="outline-button" onClick={() => setNotice('Бөлісу мүмкіндігі келесі кезеңде қосылады')}><Share2 size={16} /> Бөлісу</button></div></div>
             <div className="tree-legend"><span><i className="dot male-dot" /> Ер адам</span><span><i className="dot female-dot" /> Әйел адам</span><span><i className="line-dot" /> Ата-ана байланысы</span><span className="tree-hint">Карточканы басып, адам туралы мәліметті көріңіз</span></div>
             <div className="flow-wrap">
               <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} fitView fitViewOptions={{ padding: 0.25 }} onNodeClick={(_, node) => setActive(node.id)} nodesDraggable nodesConnectable={false} elementsSelectable proOptions={{ hideAttribution: true }}>
@@ -160,7 +180,7 @@ function App() {
                 <Controls />
                 <MiniMap pannable zoomable nodeColor={n => n.data.gender === 'female' ? '#c58b9a' : '#548477'} />
               </ReactFlow>
-              {nodes.length === 0 && <div className="empty-tree">Әзірге адам қосылмаған</div>}
+              {nodes.length === 0 && !loadingPeople && <div className="empty-tree">Әзірге адам қосылмаған. «Адам қосу» батырмасын басыңыз.</div>}{loadingPeople && <div className="empty-tree">Шежіре жүктелуде...</div>}
             </div>
           </section>
 
@@ -188,4 +208,4 @@ function App() {
   )
 }
 
-export default App
+export default function App() { return <AuthGate>{user => <Dashboard user={user} />}</AuthGate> }
