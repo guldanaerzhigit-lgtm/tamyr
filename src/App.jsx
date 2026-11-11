@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { collection, addDoc, onSnapshot, deleteDoc, doc } from 'firebase/firestore'
-import { db } from './lib/firebase'
+import { db, auth } from './lib/firebase'
+import { signOut } from 'firebase/auth'
 import AuthGate from './AuthGate.jsx'
 import {
   Search, Plus, ChevronDown, ChevronRight, Menu, X, TreePine,
@@ -154,7 +155,7 @@ function Dashboard({ user }) {
           <div className="top-actions">
             <div className="search-box"><Search size={17} /><input placeholder="Адамды іздеу..." value={search} onChange={e => setSearch(e.target.value)} /><kbd>⌘ K</kbd></div>
             <button className="icon-button" aria-label="Хабарландырулар"><Bell size={19} /><i /></button>
-            <div className="top-avatar">GE</div>
+            <button className="top-avatar" title="Шығу" onClick={() => signOut(auth)}>{(user.displayName || user.email || "T").slice(0, 1).toUpperCase()}</button>
           </div>
         </header>
 
