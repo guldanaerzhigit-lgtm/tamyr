@@ -64,7 +64,11 @@ function App() {
   })), [people])
   const edges = useMemo(() => {
     const ids = new Set(people.map(p => p.id))
-    return initialEdges.filter(e => ids.has(e.source) && ids.has(e.target))
+    const existing = initialEdges.filter(e => ids.has(e.source) && ids.has(e.target))
+    const added = people
+      .filter(p => p.parentId && ids.has(p.parentId))
+      .map(p => ({ id: `e${p.parentId}-${p.id}`, source: p.parentId, target: p.id, type: 'smoothstep' }))
+    return [...existing, ...added]
   }, [people])
   const selected = people.find(p => p.id === active) || people[0]
   const filtered = people.filter(p => `${p.name} ${p.surname} ${p.place}`.toLowerCase().includes(search.toLowerCase()))
@@ -73,7 +77,9 @@ function App() {
     e.preventDefault()
     const id = String(Date.now())
     const parent = people.find(p => p.id === form.parentId)
-    const next = [...people, { ...form, id, years: form.years || '—', generation: parent ? String(Number(parent.generation) + 1) : 'I', x: (parent?.x ?? 300) + (people.length % 2 ? 180 : -180), y: (parent?.y ?? 40) + 190 }]
+    const generationNumbers = { I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6, VII: 7, VIII: 8, IX: 9, X: 10 }
+    const nextGeneration = parent ? (generationNumbers[parent.generation] || Number(parent.generation) || 1) + 1 : 1
+    const next = [...people, { ...form, id, parentId: form.parentId, years: form.years || '—', generation: String(nextGeneration), x: (parent?.x ?? 300) + (people.length % 2 ? 180 : -180), y: (parent?.y ?? 40) + 190 }]
     setPeople(next)
     localStorage.setItem('tamyr-people', JSON.stringify(next))
     setActive(id)
