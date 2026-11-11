@@ -87,7 +87,7 @@ function Dashboard({ user }) {
   const selected = people.find(p => p.id === active) || people[0]
   const filtered = people.filter(p => `${p.name} ${p.surname} ${p.place}`.toLowerCase().includes(search.toLowerCase()))
 
-  function addPerson(e) {
+  async function addPerson(e) {
     e.preventDefault()
     const parent = people.find(p => p.id === form.parentId)
     const generationNumbers = { I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6, VII: 7, VIII: 8, IX: 9, X: 10 }
