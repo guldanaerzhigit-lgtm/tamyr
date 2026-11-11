@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { collection, addDoc, onSnapshot, deleteDoc, doc } from 'firebase/firestore'
+import { collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc } from 'firebase/firestore'
 import { db, auth } from './lib/firebase'
 import { signOut } from 'firebase/auth'
 import AuthGate from './AuthGate.jsx'
@@ -7,7 +7,7 @@ import {
   Search, Plus, ChevronDown, ChevronRight, Menu, X, TreePine,
   Users, BookOpen, Image, Settings, Bell, MoreHorizontal,
   MapPin, CalendarDays, Heart, Share2, Download, Sparkles,
-  ArrowUpRight, ShieldCheck, Crown, UserRound, GitBranch
+  ArrowUpRight, ShieldCheck, Crown, UserRound, GitBranch, Pencil, Trash2, Save
 } from 'lucide-react'
 import { ReactFlow, Background, Controls, MiniMap, Handle, Position } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
@@ -65,6 +65,7 @@ function Dashboard({ user }) {
   }, [user.uid])
   const [active, setActive] = useState('')
   const [showModal, setShowModal] = useState(false)
+  const [editingId, setEditingId] = useState(null)
   const [search, setSearch] = useState('')
   const [mobileMenu, setMobileMenu] = useState(false)
   const [form, setForm] = useState({ name: '', surname: '', years: '', place: '', role: 'Ата', gender: 'male', parentId: '1' })
@@ -87,12 +88,27 @@ function Dashboard({ user }) {
   const selected = people.find(p => p.id === active) || people[0]
   const filtered = people.filter(p => `${p.name} ${p.surname} ${p.place}`.toLowerCase().includes(search.toLowerCase()))
 
+  function openEdit(person) {
+    setEditingId(person.id)
+    setForm({ name: person.name || '', surname: person.surname || '', years: person.years || '', place: person.place || '', role: person.role || 'Ата', gender: person.gender || 'male', parentId: person.parentId || '' })
+    setShowModal(true)
+  }
+
   async function addPerson(e) {
     e.preventDefault()
     const parent = people.find(p => p.id === form.parentId)
     const generationNumbers = { I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6, VII: 7, VIII: 8, IX: 9, X: 10 }
     const nextGeneration = parent ? (generationNumbers[parent.generation] || Number(parent.generation) || 1) + 1 : 1
     try {
+      if (editingId) {
+        await updateDoc(doc(db, 'families', user.uid, 'people', editingId), { ...form, years: form.years || '—', parentId: form.parentId || '', updatedAt: new Date().toISOString() })
+        setActive(editingId)
+        setShowModal(false)
+        setEditingId(null)
+        setNotice('Адам туралы мәлімет жаңартылды')
+        setTimeout(() => setNotice(''), 2800)
+        return
+      }
       const created = await addDoc(collection(db, 'families', user.uid, 'people'), { ...form, parentId: form.parentId || '', years: form.years || '—', generation: String(nextGeneration), x: (parent?.x ?? 300) + (people.length % 2 ? 180 : -180), y: (parent?.y ?? 40) + 190, createdAt: new Date().toISOString() })
       setActive(created.id)
     setShowModal(false)
@@ -194,8 +210,8 @@ function Dashboard({ user }) {
               </div>
             </section>
             <section className="panel profile-panel">
-              <div className="panel-title"><div><h3>Адам туралы</h3><p>Таңдалған адамның деректері</p></div><button className="more-button"><MoreHorizontal size={19} /></button></div>
-              {selected ? <><div className="profile-person"><div className={`profile-avatar ${selected.gender === 'female' ? 'female' : ''}`}>{selected.name.slice(0,1)}{selected.surname.slice(0,1)}</div><div><h4>{selected.name} {selected.surname}</h4><span>{selected.role}</span></div></div><div className="detail-list"><div><CalendarDays size={16} /><span>Өмір сүрген жылдары</span><b>{selected.years}</b></div><div><MapPin size={16} /><span>Туған жері</span><b>{selected.place || 'Көрсетілмеген'}</b></div><div><GitBranch size={16} /><span>Ұрпағы</span><b>{selected.generation}-буын</b></div></div><div className="profile-note"><Sparkles size={16} /><span>Бұл адамның өмір тарихын толықтыру арқылы әулет мұрасын сақтаңыз.</span></div></> : <div className="no-results">Адамды таңдаңыз.</div>}
+              <div className="panel-title"><div><h3>Адам туралы</h3><p>Таңдалған адамның деректері</p></div><button className="more-button" onClick={() => selected && openEdit(selected)} title="Мәліметті өзгерту"><Pencil size={16} /></button></div>
+              {selected ? <><div className="profile-person"><div className={`profile-avatar ${selected.gender === 'female' ? 'female' : ''}`}>{selected.name.slice(0,1)}{selected.surname.slice(0,1)}</div><div><h4>{selected.name} {selected.surname}</h4><span>{selected.role}</span></div></div><div className="detail-list"><div><CalendarDays size={16} /><span>Өмір сүрген жылдары</span><b>{selected.years}</b></div><div><MapPin size={16} /><span>Туған жері</span><b>{selected.place || 'Көрсетілмеген'}</b></div><div><GitBranch size={16} /><span>Ұрпағы</span><b>{selected.generation}-буын</b></div></div><div className="profile-actions"><button className="outline-button" onClick={() => openEdit(selected)}><Pencil size={15} /> Мәліметті өзгерту</button><button className="outline-button danger-button" onClick={async () => { if (window.confirm(`${selected.name} ${selected.surname} туралы жазбаны өшіресіз бе?`)) { await deleteDoc(doc(db, 'families', user.uid, 'people', selected.id)); setActive(''); setNotice('Жазба өшірілді') } }}><Trash2 size={15} /> Өшіру</button></div><div className="profile-note"><Sparkles size={16} /><span>Бұл адамның өмір тарихын толықтыру арқылы әулет мұрасын сақтаңыз.</span></div></> : <div className="no-results">Адамды таңдаңыз.</div>}
             </section>
           </div>
 
@@ -203,7 +219,7 @@ function Dashboard({ user }) {
         </div>
       </main>
 
-      {showModal && <div className="modal-backdrop" onMouseDown={e => e.target === e.currentTarget && setShowModal(false)}><form className="person-modal" onSubmit={addPerson}><div className="modal-head"><div><div className="eyebrow">ШЕЖІРЕНІ ТОЛЫҚТЫРУ</div><h2>Жаңа адам қосу</h2><p>Әулет тарихына тағы бір есім енгізіңіз.</p></div><button type="button" className="icon-button" onClick={() => setShowModal(false)}><X size={19} /></button></div><label>Аты<input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Мысалы, Ахмет" /></label><label>Тегі<input required value={form.surname} onChange={e => setForm({ ...form, surname: e.target.value })} placeholder="Мысалы, Ержігіт" /></label><div className="form-two"><label>Өмір сүрген жылдары<input value={form.years} onChange={e => setForm({ ...form, years: e.target.value })} placeholder="1950 — 2020" /></label><label>Туған жері<input value={form.place} onChange={e => setForm({ ...form, place: e.target.value })} placeholder="Ауыл, аудан" /></label></div><div className="form-two"><label>Туыстық атауы<select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}><option>Ата</option><option>Әже</option><option>Әке</option><option>Ана</option><option>Бала</option><option>Аға</option><option>Әпке</option><option>Нағашы</option><option>Басқа</option></select></label><label>Жынысы<select value={form.gender} onChange={e => setForm({ ...form, gender: e.target.value })}><option value="male">Ер адам</option><option value="female">Әйел адам</option></select></label></div><label>Шежіредегі байланысы<select value={form.parentId} onChange={e => setForm({ ...form, parentId: e.target.value })}>{people.map(p => <option key={p.id} value={p.id}>{p.name} {p.surname}</option>)}</select></label><div className="modal-actions"><button type="button" className="outline-button" onClick={() => setShowModal(false)}>Болдырмау</button><button className="primary-button" type="submit"><Plus size={17} /> Қосу</button></div></form></div>}
+      {showModal && <div className="modal-backdrop" onMouseDown={e => e.target === e.currentTarget && setShowModal(false)}><form className="person-modal" onSubmit={addPerson}><div className="modal-head"><div><div className="eyebrow">ШЕЖІРЕНІ ТОЛЫҚТЫРУ</div><h2>{editingId ? 'Мәліметті өзгерту' : 'Жаңа адам қосу'}</h2><p>{editingId ? 'Адам туралы ақпаратты жаңартыңыз.' : 'Әулет тарихына тағы бір есім енгізіңіз.'}</p></div><button type="button" className="icon-button" onClick={() => { setShowModal(false); setEditingId(null) }}><X size={19} /></button></div><label>Аты<input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Мысалы, Ахмет" /></label><label>Тегі<input required value={form.surname} onChange={e => setForm({ ...form, surname: e.target.value })} placeholder="Мысалы, Ержігіт" /></label><div className="form-two"><label>Өмір сүрген жылдары<input value={form.years} onChange={e => setForm({ ...form, years: e.target.value })} placeholder="1950 — 2020" /></label><label>Туған жері<input value={form.place} onChange={e => setForm({ ...form, place: e.target.value })} placeholder="Ауыл, аудан" /></label></div><div className="form-two"><label>Туыстық атауы<select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}><option>Ата</option><option>Әже</option><option>Әке</option><option>Ана</option><option>Бала</option><option>Аға</option><option>Әпке</option><option>Нағашы</option><option>Басқа</option></select></label><label>Жынысы<select value={form.gender} onChange={e => setForm({ ...form, gender: e.target.value })}><option value="male">Ер адам</option><option value="female">Әйел адам</option></select></label></div><label>Шежіредегі байланысы<select value={form.parentId} onChange={e => setForm({ ...form, parentId: e.target.value })}>{people.map(p => <option key={p.id} value={p.id}>{p.name} {p.surname}</option>)}</select></label><div className="modal-actions"><button type="button" className="outline-button" onClick={() => { setShowModal(false); setEditingId(null) }}>Болдырмау</button><button className="primary-button" type="submit">{editingId ? <Save size={17} /> : <Plus size={17} />}{editingId ? 'Сақтау' : 'Қосу'}</button></div></form></div>}
       {notice && <div className="toast"><span>✓</span>{notice}</div>}
     </div>
   )
